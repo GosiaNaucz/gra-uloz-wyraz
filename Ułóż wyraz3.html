@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ułóż wyraz z liter – Zwierzęta</title>
+
+<style>
+/* ---------- ZMIENNE KOLORÓW ---------- */
+:root{
+  --bg:#f7fafc;          /* Tło strony */
+  --card:#ffffff;        /* Tło kart */
+  --ink:#1a202c;         /* Tekst główny */
+  --muted:#4a5568;       /* Tekst poboczny */
+  --brand:#2563eb;       /* Kolor przycisków */
+  --ok:#16a34a;          /* Kolor sukcesu */
+  --bad:#dc2626;         /* Kolor błędu */
+  --shadow:0 6px 20px rgba(0,0,0,.08); /* Cień */
+}
+
+/* ---------- RESET I PODSTAWY ---------- */
+*{ box-sizing:border-box }              /* Padding/border wliczany w wymiary */
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  padding:20px;
+}
+
+/* ---------- NAGŁÓWEK ---------- */
+h1{ text-align:center; margin-bottom:10px }
+
+/* ---------- GŁÓWNY KONTENER ---------- */
+.wrap{ max-width:600px; margin:0 auto }
+
+/* ---------- KARTA ---------- */
+.card{
+  background:var(--card);
+  border-radius:18px;
+  box-shadow:var(--shadow);
+  padding:20px;
+  margin-bottom:16px;
+  text-align:center;
+}
+
+/* ---------- PODTYTUŁ ---------- */
+.subtitle{ font-size:16px; color:var(--muted); margin-bottom:10px }
+
+/* ---------- OBRAZ ZWIERZĘCIA ---------- */
+.animal-image{
+  width:120px; height:120px;
+  object-fit:contain;
+  margin-bottom:15px;
+}
+
+/* ---------- LISTA LITER (źródło) ---------- */
+.letters{
+  display:flex; justify-content:center; flex-wrap:wrap;
+  gap:8px; margin-bottom:20px;
+  min-height:58px; /* lekki bufor, żeby obszar był widoczny, gdy pusty */
+}
+
+/* Każda litera */
+.letter{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:50px; height:50px;
+  border:1px solid #cbd5e1; border-radius:12px;
+  background:#e5f0ff; font-size:24px;
+  cursor:grab; user-select:none;
+}
+
+/* ---------- STREFA ODP. (dropzone) ---------- */
+.dropzone{
+  display:flex; justify-content:center; flex-wrap:wrap;
+  gap:4px; min-height:58px;
+  border:2px dashed #cbd5e1; border-radius:12px;
+  padding:8px; margin-bottom:12px;
+}
+
+/* ---------- PRZYCISKI I WYNIK ---------- */
+button{
+  padding:10px 18px; font-size:16px;
+  border:none; border-radius:12px;
+  background:var(--brand); color:#fff;
+  cursor:pointer; box-shadow:var(--shadow);
+  margin:4px;
+}
+#result{ margin-top:16px; font-size:20px; font-weight:700; text-align:center }
+.good{ color:var(--ok) }
+.bad{ color:var(--bad) }
+</style>
+</head>
+
+<body>
+<h1>Ułóż wyraz z liter</h1>
+
+<div class="wrap">
+  <div class="card">
+    <div class="subtitle">Kategoria: Zwierzęta</div>
+
+    <!-- Obraz bieżącego zwierzęcia -->
+    <img id="animalImage" class="animal-image" src="" alt="Zwierzę">
+
+    <!-- Kontener z literami źródłowymi (tu wracają) -->
+    <div class="letters" id="lettersContainer"></div>
+
+    <!-- Pole odpowiedzi, tu układamy słowo -->
+    <div class="dropzone" id="dropzone"></div>
+
+    <!-- Sterowanie -->
+    <div>
+      <button onclick="checkWord()">Sprawdź</button>           <!-- Sprawdza złożone słowo -->
+      <button onclick="clearDropzone()">Usuń wszystko</button>  <!-- Zwraca wszystkie litery -->
+      <div id="result"></div>                                   <!-- Komunikat wyniku -->
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- DANE: lista zwierząt ---------- */
+const animals = [
+  {name:"kot", img:"images/kot.jpg"},
+  {name:"pies", img:"images/pies.jpg"},
+  {name:"lew", img:"images/lew.jpg"},
+  {name:"słoń", img:"images/słoń.jpg"},
+  {name:"koala", img:"images/koala.jpg"},
+  {name:"tygrys", img:"images/tygrys.jpg"},
+  {name:"krowa", img:"images/krowa.jpg"},
+  {name:"koń", img:"images/kon.jpg"},
+  {name:"żaba", img:"images/zaba.jpg"},
+  {name:"lis", img:"images/lis.jpg"},
+  {name:"pingwin", img:"images/pingwin.jpg"},
+  {name:"sowa", img:"images/sowa.jpg"},
+  {name:"wilk", img:"images/wilk.jpg"},
+  {name:"jeleń", img:"images/jelen.jpg"},
+  {name:"koza", img:"images/koza.jpg"},
+  {name:"świnka", img:"images/swinka.jpg"},
+  {name:"kaczka", img:"images/kaczka.jpg"},
+  {name:"indyk", img:"images/indyk.jpg"},
+  {name:"ryba", img:"images/ryba.jpg"},
+  {name:"żółw", img:"images/zolw.jpg"}
+];
+
+/* ---------- ZMIENNE GLOBALNE ---------- */
+let currentWord = "";                               // aktualne słowo do ułożenia
+let uid = 0;                                        // licznik do unikalnych ID liter
+const lettersContainer = document.getElementById('lettersContainer');
+const dropzone = document.getElementById('dropzone');
+
+/* ---------- Pomocnicze: tasowanie tablicy (Fisher–Yates) ---------- */
+function shuffleArray(arr){
+  for(let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/* ---------- Tworzy pojedynczy element litery ---------- */
+function createLetterElement(letter){
+  const span = document.createElement('div');   // tworzymy kafelek litery
+  span.className = 'letter';
+  span.textContent = letter;
+  span.id = 'ltr-' + (uid++);                   // unikalny ID – konieczny, by PRZENOSIĆ bez duplikacji
+  span.draggable = true;                        // włącz przeciąganie
+
+  // Start przeciągania: wkładamy do dataTransfer ID elementu (nie samą literę!)
+  span.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', span.id);
+    e.dataTransfer.effectAllowed = 'move';      // wskazujemy, że element ma być PRZENIESIONY
+  });
+
+  // Kliknięcie na literę w dropzone -> przenieś z powrotem do kontenera z literami
+  span.addEventListener('click', () => {
+    if (span.parentElement === dropzone) {
+      lettersContainer.appendChild(span);       // przeniesienie istniejącego węzła (bez tworzenia kopii)
+    }
+  });
+
+  return span;
+}
+
+/* ---------- Włącza możliwość upuszczania w danym kontenerze ---------- */
+function enableDropping(container){
+  // Pozwól na drop (domyślnie jest zablokowany)
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';         // podpowiedź UI – przeniesienie
+  });
+
+  // Obsługa upuszczenia: znajdź element po ID i PRZENIEŚ go do kontenera
+  container.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');  // pobierz ID przeciąganej litery
+    const el = document.getElementById(id);           // znajdź istniejący węzeł
+    if (!el) return;                                  // bezpieczeństwo na wypadek braku elementu
+    container.appendChild(el);                        // samo appendChild PRZENOSI węzeł – zero duplikatów
+  });
+}
+
+// Włączamy drop zarówno na polu odpowiedzi, jak i na źródłowym kontenerze z literami
+enableDropping(dropzone);
+enableDropping(lettersContainer);
+
+/* ---------- Nowe słowo: czyści stan i generuje litery ---------- */
+function newWord(){
+  const animal = animals[Math.floor(Math.random() * animals.length)];  // losowe zwierzę
+  currentWord = animal.name;                                           // zapamiętaj oczekiwane słowo
+  document.getElementById('animalImage').src = animal.img;             // obraz zwierzęcia
+
+  // Wyczyszczenie UI
+  lettersContainer.innerHTML = '';
+  dropzone.innerHTML = '';
+  document.getElementById('result').innerText = '';
+
+  // Rozbij słowo na litery, przetasuj i dodaj do źródłowego kontenera
+  const letters = shuffleArray(currentWord.split(''));
+  letters.forEach(ch => lettersContainer.appendChild(createLetterElement(ch)));
+}
+
+/* ---------- Usuń wszystko: przenieś WSZYSTKIE litery z odpowiedzi do źródła ---------- */
+function clearDropzone(){
+  while (dropzone.firstChild) {
+    lettersContainer.appendChild(dropzone.firstChild);  // przenosimy istniejące węzły (bez klonów)
+  }
+}
+
+/* ---------- Sprawdź złożone słowo ---------- */
+function checkWord(){
+  // Złóż tekst z liter w kolejności ułożonej w dropzone
+  const userWord = Array.from(dropzone.children).map(c => c.textContent).join('');
+  if (userWord.toLowerCase() === currentWord.toLowerCase()){
+    document.getElementById('result').innerHTML =
+      "✅ Brawo! To jest: <span class='good'>" + currentWord + "</span>";
+    setTimeout(newWord, 1500);  // po chwili losuj nowe słowo
+  } else {
+    document.getElementById('result').innerHTML = "❌ Spróbuj ponownie.";
+  }
+}
+
+/* ---------- Start gry ---------- */
+newWord();
+</script>
+</body>
+</html>
